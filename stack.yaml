@@ -1,0 +1,22 @@
+resolver: lts-9.21
+
+packages:
+- .
+
+extra-deps:
+- streamly-0.4.1
+- lockfree-queue-0.2.3.1
+- midi-simple-0.1.0.0
+#- alsa-0.4
+#- array-0.3.0.3
+#- base-4.4.1.0
+#- sample-frame-0.0.3
+
+
+#allow-newer: true
+
+# flags: {}
+
+# extra-package-dbs: []
+
+# system-ghc: true
