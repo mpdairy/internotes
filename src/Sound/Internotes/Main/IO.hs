@@ -6,7 +6,8 @@
 module Sound.Internotes.Main.IO where
 
 import qualified Prelude as P
-import Sound.Internotes.Prelude
+import Sound.Internotes.Prelude hiding (sleep)
+import qualified Sound.Internotes.Prelude as IP
 import System.IO hiding (print)
 import System.Environment
 import System.Process
@@ -19,35 +20,41 @@ import Control.Concurrent
 import Sound.Internotes.Types.Midi
 import qualified Data.Text as Text
 import qualified Sound.Internotes.Types.MonadInternotes as MonadInternotes
-import Sound.Internotes.Types.MonadInternotes (MonadInternotes)
+import Sound.Internotes.Types.MonadInternotes (MonadInternotes
+                                              )
 import qualified Streamly.Prelude as S
 import Streamly hiding (async)
 import qualified Sound.Internotes.Midi.Alsa as Alsa
 import Control.Concurrent.STM.TQueue
+import Data.Time.Calendar ( Day(ModifiedJulianDay))
+import Sound.Internotes.Types.Internotes (InternotesEvent( MidiEvent
+                                                         , CurrentTime ))
+import Data.Time.Clock ( NominalDiffTime, UTCTime(UTCTime)
+                       , diffUTCTime
+                       )
+import qualified Data.Time.Clock as Clock
 
 -- internotes 9999 2.0 5.0
 -- internotes 4 1.0 7.0
 
-
 instance MonadInternotes InternotesIO where
-  pollMidiEvent = ask >>= \ctx ->
-    liftIO . atomically . readTQueue . midiInputStream $ ctx
   playNote n = liftIO . playNote n
-  sleep = liftIO . sleep
-  waitEither m1 m2 = ask >>= \ctx -> do
-    a1 <- liftIO $ asyncm ctx m1
-    a2 <- liftIO $ asyncm ctx m2
-    liftIO $ Async.waitEither a1 a2
-    where
-      asyncm :: InternotesCtx -> InternotesIO a -> IO (Async.Async a)
-      asyncm ctx m = async $ flip runInternotesIO ctx m
+  getCurrentTime = ask >>= \ctx -> do
+    utc <- liftIO $ Clock.getCurrentTime
+    return . diffUTCTime utc $ startUTCTime ctx
+  sleep t = ask >>= \ctx -> do
+    ct <- MonadInternotes.getCurrentTime
+    liftIO . void . forkIO $ do
+      IP.sleep t
+      atomically . writeTQueue (events ctx) . CurrentTime $ ct + t
   randomInt (low, high) = liftIO $ randomRIO (low, high)
   debug = liftIO . print
 
 
 data InternotesCtx = InternotesCtx
-  { midiInputStream :: TQueue MidiEvent
-  , playNoteAudio   :: Note -> Velocity -> IO ()
+  { events :: TQueue InternotesEvent
+  , startUTCTime :: UTCTime
+  , playNoteAudio :: Note -> Velocity -> IO ()
   }
 
 newtype InternotesIO a = InternotesIO
@@ -59,21 +66,17 @@ newtype InternotesIO a = InternotesIO
            , MonadIO
            )
 
-instance Alternative InternotesIO where
-  --isn't there a more official way to do this?
-  empty = liftIO . forever $ sleep 99999
-  m1 <|> m2 = ask >>= \ctx -> fmap (either identity identity) .
-    liftIO $ race (runInternotesIO m1 ctx) (runInternotesIO m2 ctx)
-
 runInternotesIO :: InternotesIO a -> InternotesCtx -> IO a
 runInternotesIO m ctx = flip runReaderT ctx . _runInternotesIO $ m
 
 alsaCtx :: Alsa.Source -> IO InternotesCtx
 alsaCtx src = do
   s <- Alsa.midiStream src
+  utc <- Clock.getCurrentTime
   q <- newTQueueIO
-  forkIO $ S.mapM_ (atomically . writeTQueue q) s 
-  return $ InternotesCtx { midiInputStream = q
+  forkIO $ S.mapM_ (atomically . writeTQueue q . MidiEvent) s 
+  return $ InternotesCtx { events = q
+                         , startUTCTime = utc
                          , playNoteAudio   = playNote }
 
 minNote :: Int

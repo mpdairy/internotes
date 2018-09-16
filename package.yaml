@@ -29,8 +29,12 @@ dependencies:
 - protolude
 - random
 - stm
+- streaming
 - streamly
 - text
+- time
+- timeout
+
 
 library:
   source-dirs: src
