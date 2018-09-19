@@ -20,7 +20,7 @@ import Data.Time.Clock ( NominalDiffTime )
 
 data InternotesEvent = MidiEvent MidiEvent
                      | CurrentTime NominalDiffTime
-                     | ExitInternotes
+                     | ExitInternotes a (a -> Int)
 
 type Internotes m a = EventListenT InternotesEvent m a
 
