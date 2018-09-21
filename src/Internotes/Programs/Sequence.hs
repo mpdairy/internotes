@@ -3,10 +3,10 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE LambdaCase #-}
 
-module Sound.Internotes.Programs.Sequence where
+module Internotes.Programs.Sequence where
 
 import qualified Prelude as P
-import Sound.Internotes.Prelude hiding (sleep, waitEither)
+import Internotes.Prelude hiding (sleep, waitEither)
 import System.IO hiding (print)
 import System.Environment
 import System.Process
@@ -15,9 +15,9 @@ import System.Random
 import System.Exit
 import Control.Monad.State.Lazy
 import Control.Concurrent
-import Sound.Internotes.Types.Midi
+import Internotes.Types.Midi
 import qualified Data.Text as Text
-import Sound.Internotes.Types.MonadInternotes
+import Internotes.Types.MonadInternotes
 
 -- internotes 9999 2.0 5.0
 -- internotes 4 1.0 7.0

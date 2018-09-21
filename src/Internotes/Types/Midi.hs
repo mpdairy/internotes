@@ -1,10 +1,10 @@
 {-# LANGUAGE NoImplicitPrelude    #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 
-module Sound.Internotes.Types.Midi where
+module Internotes.Types.Midi where
 
 import qualified Prelude as P
-import Sound.Internotes.Prelude
+import Internotes.Prelude
 
 data MidiEvent = NoteOn Channel Note Velocity
                | NoteOff Channel Note Velocity

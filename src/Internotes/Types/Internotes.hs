@@ -1,15 +1,17 @@
+{-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE TypeSynonymInstances #-}
 {-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE NoImplicitPrelude    #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE LambdaCase #-}
 
-module Sound.Internotes.Types.Internotes where
+module Internotes.Types.Internotes where
 
-import Sound.Internotes.Prelude hiding (sleep)
-import Sound.Internotes.Types.Midi
-import Sound.Internotes.Types.MonadInternotes
-import qualified Sound.Internotes.Types.MonadInternotes as MI
+import Internotes.Prelude hiding (sleep)
+import Internotes.Types.Midi
+import Internotes.Types.MonadInternotes ( MonadInternotes )
+import qualified Internotes.Types.MonadInternotes as MI
 import Monad.EventListen ( EventListenT( runEventListenT )
                          , listen
                          )
@@ -20,7 +22,7 @@ import Data.Time.Clock ( NominalDiffTime )
 
 data InternotesEvent = MidiEvent MidiEvent
                      | CurrentTime NominalDiffTime
-                     | ExitInternotes a (a -> Int)
+                     | ExitInternotes
 
 type Internotes m a = EventListenT InternotesEvent m a
 
@@ -43,10 +45,39 @@ runProgram q m = innerloop Nothing m where
 sleep :: MonadInternotes m => NominalDiffTime -> Internotes m ()
 sleep t = do
   lift $ MI.sleep t
-  ct <- lift $ getCurrentTime
+  ct <- lift MI.getCurrentTime
   listen (pastTime $ ct + t)
   where
     pastTime targetTime (CurrentTime time)
       | time >= targetTime = return ()
       | otherwise = Nothing
     pastTime _ _ = Nothing
+
+playNote :: MonadInternotes m => Note -> Velocity -> Internotes m ()
+playNote n = lift . MI.playNote n
+
+getCurrentTime :: MonadInternotes m => Internotes m NominalDiffTime
+getCurrentTime = lift MI.getCurrentTime
+
+randomInt :: MonadInternotes m => (Int, Int) -> Internotes m Int
+randomInt = lift . MI.randomInt
+
+debug :: MonadInternotes m => Text -> Internotes m ()
+debug = lift . MI.debug
+
+-- instance MonadInternotes m => MonadInternotes (Internotes m) where
+--   sleep t = do
+--     lift $ MI.sleep t
+--     ct <- lift MI.getCurrentTime
+--     listen (pastTime $ ct + t)
+--       where
+--         pastTime targetTime (CurrentTime time)
+--           | time >= targetTime = return ()
+--           | otherwise = Nothing
+--         pastTime _ _ = Nothing
+
+--   playNote n = lift . MI.playNote n
+--   getCurrentTime = lift MI.getCurrentTime
+--   randomInt = lift . MI.randomInt
+--   debug = lift . MI.debug
+

@@ -3,10 +3,10 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE LambdaCase #-}
 
-module Sound.Internotes.Types.MonadInternotes where
+module Internotes.Types.MonadInternotes where
 
-import Sound.Internotes.Prelude hiding (sleep)
-import Sound.Internotes.Types.Midi
+import Internotes.Prelude hiding (sleep)
+import Internotes.Types.Midi
 import Data.Time.Clock ( NominalDiffTime )
 
 class (Monad m) => MonadInternotes m where

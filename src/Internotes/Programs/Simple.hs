@@ -3,10 +3,10 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE LambdaCase #-}
 
-module Sound.Internotes.Programs.Simple where
+module Internotes.Programs.Simple where
 
 import qualified Prelude as P
-import Sound.Internotes.Prelude hiding (sleep)
+import Internotes.Prelude hiding (sleep)
 import System.IO hiding (print)
 import System.Environment
 import System.Process
@@ -15,17 +15,24 @@ import System.Random
 import System.Exit
 import Control.Monad.State.Lazy
 import Control.Concurrent
-import Sound.Internotes.Types.Midi
+import Internotes.Types.Midi
 import qualified Data.Text as Text
-import Sound.Internotes.Types.MonadInternotes hiding (sleep)
-import Sound.Internotes.Types.Internotes (Internotes, sleep)
+--import Internotes.Types.MonadInternotes hiding (sleep)
+import Internotes.Types.MonadInternotes (MonadInternotes)
+import Internotes.Types.Internotes ( Internotes
+                                         , sleep
+                                         , playNote
+                                         , randomInt
+                                         , debug
+                                         , getCurrentTime
+                                         )
 -- internotes 9999 2.0 5.0
 -- internotes 4 1.0 7.0
 
 reallySimple :: MonadInternotes m => Internotes m ()
 reallySimple = forever $ do
-  r <- lift $ randomInt (40, 42)
-  lift $ playNote (Note r) 100
+  r <- randomInt (40, 42)
+  playNote (Note r) 100
   sleep 1.5
 
 -- simplePlay :: MonadInternotes m => m ()

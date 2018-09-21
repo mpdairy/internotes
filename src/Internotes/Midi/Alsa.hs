@@ -3,9 +3,9 @@
 {-# LANGUAGE LambdaCase    #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving   #-}
 
-module Sound.Internotes.Midi.Alsa where
+module Internotes.Midi.Alsa where
 
-import Sound.Internotes.Prelude
+import Internotes.Prelude
 import qualified Prelude as P
 import Streamly
 import Streamly.Prelude ((|:), (.:))
@@ -15,8 +15,8 @@ import qualified Streamly.Prelude as S
 import Data.Attoparsec.Text
 import Data.Attoparsec.Combinator
 import qualified Data.Text as Text
-import Sound.Internotes.Types.Midi
-import Sound.Internotes.Types.MonadInternotes (MonadInternotes)
+import Internotes.Types.Midi
+import Internotes.Types.MonadInternotes (MonadInternotes)
 import qualified Sound.MIDI as MIDI
 
 demo :: IO ()
