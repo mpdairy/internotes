@@ -37,6 +37,16 @@ reallySimple = forever $ do
   cmd $ playNote (Note r) 100
   cmd $ sleep 1.5
 
+reallySimple_ :: MonadInternotes m => NominalDiffTime -> Text -> Internotes m ()
+reallySimple_ t txt= forever $ do
+  r <- cmd $ randomInt (40, 42)
+  cmd $ playNote (Note r) 100
+  cmd $ debug txt
+  cmd $ sleep t
+
+biSimple :: MonadInternotes m => Internotes m ()
+biSimple = reallySimple_ 1.5 "Buster" <|> reallySimple_ 4.0 "Wiggy Wiggy"
+
 -- simplePlay :: MonadInternotes m => m ()
 -- simplePlay = forever $ pollMidiEvent >>= \case
 --   NoteOn _ n v -> playNote n v

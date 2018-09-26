@@ -34,8 +34,8 @@ import Data.Time.Clock ( NominalDiffTime, UTCTime(UTCTime)
                        , diffUTCTime
                        )
 import qualified Data.Time.Clock as Clock
-import Monad.Flume (execFlumeAsync)
-import Internotes.Programs.Simple (reallySimple)
+import Monad.Flume (execFlumeAsync, FlumeEvent( GlobalEvent ))
+import Internotes.Programs.Simple (reallySimple, biSimple)
 
 -- internotes 9999 2.0 5.0
 -- internotes 4 1.0 7.0
@@ -50,7 +50,7 @@ instance MonadInternotes InternotesIO where
   debug = liftIO . print
 
 data InternotesCtx = InternotesCtx
-  { events :: TQueue InternotesEvent
+  { events :: TQueue (FlumeEvent InternotesEvent)
   , startUTCTime :: UTCTime
   , playNoteAudio :: Note -> Velocity -> IO ()
   }
@@ -67,7 +67,7 @@ newtype InternotesIO a = InternotesIO
 runProgram :: Internotes InternotesIO a -> IO a
 runProgram program = do
   ctx <- alsaCtxNoInput
-  flip runInternotesIO ctx $ execFlumeAsync (unliftIO ctx) (events ctx) program
+  flip runInternotesIO ctx $ execFlumeAsync (unliftIO ctx) 0 (events ctx) program
     where
       unliftIO ctx m = Just <$> runInternotesIO m ctx
 
@@ -89,7 +89,7 @@ alsaCtx src = do
   s <- Alsa.midiStream src
   utc <- Clock.getCurrentTime
   q <- newTQueueIO
-  forkIO $ S.mapM_ (atomically . writeTQueue q . MidiEvent) s 
+  forkIO $ S.mapM_ (atomically . writeTQueue q . GlobalEvent . MidiEvent) s 
   return $ InternotesCtx { events = q
                          , startUTCTime = utc
                          , playNoteAudio   = playNote }
