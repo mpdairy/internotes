@@ -22,6 +22,7 @@ import qualified Data.Text as Text
 import qualified Internotes.Types.MonadInternotes as MonadInternotes
 import Internotes.Types.MonadInternotes (MonadInternotes
                                               )
+import Internotes.Types.Internotes (Internotes)
 import qualified Streamly.Prelude as S
 import Streamly hiding (async)
 import qualified Internotes.Midi.Alsa as Alsa
@@ -33,6 +34,8 @@ import Data.Time.Clock ( NominalDiffTime, UTCTime(UTCTime)
                        , diffUTCTime
                        )
 import qualified Data.Time.Clock as Clock
+import Monad.Flume (execFlumeAsync)
+import Internotes.Programs.Simple (reallySimple)
 
 -- internotes 9999 2.0 5.0
 -- internotes 4 1.0 7.0
@@ -42,14 +45,9 @@ instance MonadInternotes InternotesIO where
   getCurrentTime = ask >>= \ctx -> do
     utc <- liftIO $ Clock.getCurrentTime
     return . diffUTCTime utc $ startUTCTime ctx
-  sleep t = ask >>= \ctx -> do
-    ct <- MonadInternotes.getCurrentTime
-    liftIO . void . forkIO $ do
-      IP.sleep t
-      atomically . writeTQueue (events ctx) . CurrentTime $ ct + t
+  sleep t = IP.sleep t
   randomInt (low, high) = liftIO $ randomRIO (low, high)
   debug = liftIO . print
-
 
 data InternotesCtx = InternotesCtx
   { events :: TQueue InternotesEvent
@@ -65,6 +63,23 @@ newtype InternotesIO a = InternotesIO
            , MonadReader InternotesCtx
            , MonadIO
            )
+
+runProgram :: Internotes InternotesIO a -> IO a
+runProgram program = do
+  ctx <- alsaCtxNoInput
+  flip runInternotesIO ctx $ execFlumeAsync (unliftIO ctx) (events ctx) program
+    where
+      unliftIO ctx m = Just <$> runInternotesIO m ctx
+
+alsaCtxNoInput :: IO InternotesCtx
+alsaCtxNoInput = do
+  utc <- Clock.getCurrentTime
+  q <- newTQueueIO
+--  forkIO $ S.mapM_ (atomically . writeTQueue q . MidiEvent) s 
+  return $ InternotesCtx { events = q
+                         , startUTCTime = utc
+                         , playNoteAudio   = playNote }
+
 
 runInternotesIO :: InternotesIO a -> InternotesCtx -> IO a
 runInternotesIO m ctx = flip runReaderT ctx . _runInternotesIO $ m

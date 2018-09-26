@@ -18,55 +18,89 @@ import           Control.Monad.Trans                         ( MonadTrans )
 import qualified Data.Text                      as Text
 import Control.Concurrent.STM.TQueue (TQueue, writeTQueue, readTQueue)
 import Monad.EventListen ( EventListenT, runEventListenT )
+import qualified Monad.EventListen as EL
 import Control.Concurrent.STM.TVar ( newTVarIO, readTVar, writeTVar )
+import Data.Dynamic (Dynamic, fromDynamic, toDyn)
 
-type Flume event m a = EventListenT event m Identity a
+data FlumeState = FlumeState
+  { nextEventId :: FlumeEventId }
 
-runFlume :: Maybe event -> Flume event m a
-         -> (Bool, [m event], Either (Flume event m a) a)
-runFlume mevent m = runIdentity $ runEventListenT m mevent 
+type Flume m' event a = EventListenT m' (FlumeEvent event) (State FlumeEventId) a
+
+newtype FlumeEventId = FlumeEventId Int
+  deriving (Eq, Ord, Show, Read, Num)
+
+data FlumeEvent event = CmdEvent FlumeEventId Dynamic
+                      | GlobalEvent event
+
+-- data LocalEventType event = LocalUserEvent event
+--                           | LocalCmd Dynamic
+
+runFlume :: Maybe (FlumeEvent event) -> FlumeEventId -> Flume m' event a
+         -> ((Bool, [m' (FlumeEvent event)], Either (Flume m' event a) a), FlumeEventId)
+runFlume mevent eid m = flip runState eid $ runEventListenT m mevent 
 
 --sequential, non concurrent execution of m actions
-execFlumeSequential :: Monad m => [event] -> Flume event m a
-                    -> m (Either (Flume event m a) a)
-execFlumeSequential [] m = case runFlume Nothing m of
-  (_, _, Right a) -> return $ Right a
-  (_, [], er) -> return er
-  (_, effects, Left cont) -> do
+execFlumeSequential :: Monad m => [FlumeEvent event] -> FlumeEventId -> Flume m event a
+                    -> m (Either ((Flume m event a), FlumeEventId) a)
+execFlumeSequential [] ceid m = case runFlume Nothing ceid m of
+  ((_, _, Right a), _) -> return $ Right a
+  ((_, [], er), eid) -> return $ first (,eid) er
+  ((_, effects, Left cont), eid) -> do
     events <- sequence effects
-    execFlumeSequential events cont
-execFlumeSequential (x:xs) m = case runFlume (Just x) m of
-  (_, _, Right a) -> return $ Right a
-  (_, effects, Left cont) -> do
+    execFlumeSequential events eid cont
+execFlumeSequential (x:xs) ceid m = case runFlume (Just x) ceid m of
+  ((_, _, Right a), _) -> return $ Right a
+  ((_, effects, Left cont), eid) -> do
     events <- sequence effects
-    execFlumeSequential (xs <> events) cont
+    execFlumeSequential (xs <> events) eid cont
 
 execFlumeAsync :: (MonadIO m)
-               => (m event -> IO (Maybe event)) -> TQueue event -> Flume event m a -> m a
-execFlumeAsync runEffect eventsTQ fm = case runFlume Nothing fm of
-  (_, effects, Right a) -> do
+               => (m (FlumeEvent event) -> IO (Maybe (FlumeEvent event)))
+               -> FlumeEventId
+               -> TQueue (FlumeEvent event) -> Flume m event a -> m a
+execFlumeAsync runEffect neid eventsTQ fm = case runFlume Nothing neid fm of
+  ((_, effects, Right a), _) -> do
     traverse_ execEffect effects
     return a
-  (_, effects, Left cont) -> do
+  ((_, effects, Left cont), eid) -> do
     traverse_ affectQueue effects
-    ftv <- liftIO $ newTVarIO cont
-    loop ftv
+    loop cont eid
   where
     execEffect = liftIO . forkIO . void . runEffect
     affectQueue eff = liftIO . forkIO . void $ do
       mevent <- runEffect eff
       maybe (return ()) (atomically . writeTQueue eventsTQ) mevent
-    loop ftv = do
+    loop fm ceid = do
       event <- liftIO . atomically $ readTQueue eventsTQ
-      (effects, mresult) <- liftIO . atomically $ do
-        fm <- readTVar ftv
-        case runFlume (Just event) fm of
-          (_, effects, Right a) -> return (effects, Just a)
-          (_, effects, Left cont) -> do
-            writeTVar ftv cont
-            return (effects, Nothing)
-      case mresult of
-        Just a -> do
+      case runFlume (Just event) ceid fm of
+        ((_, effects, Right a), _) -> do
           traverse_ execEffect effects
           return a
-        Nothing -> traverse_ affectQueue effects >> loop ftv
+        ((_, effects, Left cont), eid) -> do
+          traverse_ affectQueue effects >> loop cont eid
+
+cmd :: (Monad m', Typeable a) => m' a -> Flume m' event a
+cmd action = do
+  eid <- lift get
+  EL.cmd (CmdEvent eid . toDyn <$> action)
+  lift . put $ eid + 1
+  EL.listen $ cmdListen eid
+    where
+      cmdListen eid (CmdEvent eid' x)
+        | eid == eid' = fromDynamic x
+        | otherwise = Nothing
+      cmdListen _ _ = Nothing
+
+globalEvent :: Monad m' => m' event -> Flume m' event ()
+globalEvent action = EL.cmd $ GlobalEvent <$> action
+
+listen :: (event -> Maybe a) -> Flume m' event a
+listen mf = EL.listen f where
+  f (GlobalEvent e) = mf e
+  f _ = Nothing
+
+testjim :: Identity Text
+testjim = do
+  j <- flip runReaderT () $ return "jim"
+  return j

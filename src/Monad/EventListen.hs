@@ -17,23 +17,23 @@ import           Control.Monad.Trans                         ( MonadTrans )
 import qualified Data.Text                      as Text
 import Control.Concurrent.STM.TQueue (TQueue)
 
-newtype EventListenT event m' m a =
+newtype EventListenT m' event m a =
   EventListenT { runEventListenT ::
                    Maybe event -> m ( Bool
                                     , [m' event]
-                                    , Either (EventListenT event m' m a) a) }
+                                    , Either (EventListenT m' event m a) a) }
 
-instance MonadTrans (EventListenT event m') where
+instance MonadTrans (EventListenT m' event) where
   lift ma = EventListenT $ \_ -> (False,[],) . Right <$> ma
 
-instance Monad m => Functor (EventListenT event m' m) where
+instance Monad m => Functor (EventListenT m' event m) where
   fmap f (EventListenT g) = EventListenT $ \event -> do
     (consumed, actions, er) <- g event
     case er of
       Right a -> return (consumed, actions, Right $ f a)
       Left cont -> return (consumed, actions, Left $ f <$> cont)
 
-instance Monad m => Applicative (EventListenT event m' m) where
+instance Monad m => Applicative (EventListenT m' event m) where
   pure a = EventListenT $ \_ -> return (False, [], Right a)
   (EventListenT mfab) <*> (EventListenT ma) = EventListenT $ \mevent -> do
     (consumed, actions, efab) <- mfab mevent
@@ -45,7 +45,7 @@ instance Monad m => Applicative (EventListenT event m' m) where
           Left cont -> return (consumed || consumed', actions <> actions', Left $ fab <$> cont)
           Right a -> return (consumed || consumed', actions <> actions', Right $ fab a)
 
-instance Monad m => Monad (EventListenT event m' m) where
+instance Monad m => Monad (EventListenT m' event m) where
   return = pure
   (EventListenT ma) >>= famb = EventListenT $ \mevent -> do
     (consumed, actions, er) <- ma mevent
@@ -58,7 +58,7 @@ instance Monad m => Monad (EventListenT event m' m) where
           Left errmb -> return (consumed || consumed', actions <> actions', Left errmb)
           Right b -> return (consumed || consumed', actions <> actions', Right b)
 
-instance Monad m => Alternative (EventListenT event m' m) where
+instance Monad m => Alternative (EventListenT m' event m) where
   empty = EventListenT $ \_ -> return (False, [], Left empty)
   (EventListenT ma) <|> (EventListenT mb) = EventListenT $ \ mevent -> do
     (consumed, actions, er) <- ma mevent
@@ -70,18 +70,20 @@ instance Monad m => Alternative (EventListenT event m' m) where
           Right b -> return (consumed' || consumed, actions <> actions', Right b)
           Left contb -> return (consumed' || consumed, actions <> actions',  Left $ conta <|> contb)
 
-listen :: Monad m => (event -> Maybe a) -> EventListenT event m' m a
+listen :: Monad m => (event -> Maybe a) -> EventListenT m' event m a
 listen p = EventListenT $ \mevent -> case join (p <$> mevent) of
   Nothing -> return (False, [], Left $ listen p)
   (Just a) -> return (True, [], Right a)
 
-peek :: Monad m => (event -> Maybe a) -> EventListenT event m' m a
+peek :: Monad m => (event -> Maybe a) -> EventListenT m' event m a
 peek p = EventListenT $ \mevent -> case join (p <$> mevent) of
   Nothing -> return (False, [], Left $ listen p)
   (Just a) -> return (False, [], Right a)
 
+cmd :: Monad m =>  m' event -> EventListenT m' event m ()
+cmd action = EventListenT $ \_ -> return (False, [action], Right ())
 
-consumeEvent :: Monad m => EventListenT event m' m ()
+consumeEvent :: Monad m => EventListenT m' event m ()
 consumeEvent = EventListenT $ \_ -> return (True, [], Right ())
 
 -- runPure :: (Monad m, Monad m')

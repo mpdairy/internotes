@@ -18,22 +18,24 @@ import Control.Concurrent
 import Internotes.Types.Midi
 import qualified Data.Text as Text
 --import Internotes.Types.MonadInternotes hiding (sleep)
-import Internotes.Types.MonadInternotes (MonadInternotes)
+import Internotes.Types.MonadInternotes (MonadInternotes
+                                        , sleep
+                                        , playNote
+                                        , randomInt
+                                        , debug
+                                        , getCurrentTime
+                                        )
+import Monad.Flume (cmd, listen, globalEvent)
 import Internotes.Types.Internotes ( Internotes
-                                         , sleep
-                                         , playNote
-                                         , randomInt
-                                         , debug
-                                         , getCurrentTime
                                          )
 -- internotes 9999 2.0 5.0
 -- internotes 4 1.0 7.0
 
 reallySimple :: MonadInternotes m => Internotes m ()
 reallySimple = forever $ do
-  r <- randomInt (40, 42)
-  playNote (Note r) 100
-  sleep 1.5
+  r <- cmd $ randomInt (40, 42)
+  cmd $ playNote (Note r) 100
+  cmd $ sleep 1.5
 
 -- simplePlay :: MonadInternotes m => m ()
 -- simplePlay = forever $ pollMidiEvent >>= \case

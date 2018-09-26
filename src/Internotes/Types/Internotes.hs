@@ -15,55 +15,54 @@ import qualified Internotes.Types.MonadInternotes as MI
 import Monad.EventListen ( EventListenT( runEventListenT )
                          , listen
                          )
-import qualified Monad.EventListen as EventListen
+import qualified Monad.Flume as Flume
 import Control.Concurrent.STM.TQueue
 import Data.Time.Clock ( NominalDiffTime )
-
+import Monad.Flume ( Flume, runFlume )
 
 data InternotesEvent = MidiEvent MidiEvent
                      | CurrentTime NominalDiffTime
                      | ExitInternotes
+                     | RandomInt Int
+                     | Noop
 
-type Internotes m a = EventListenT InternotesEvent m a
+type Internotes m a = Flume m InternotesEvent a
 
-runInternotes :: Internotes m a
-               -> Maybe InternotesEvent
-               -> m (Bool, Either (EventListenT InternotesEvent m a) a)
-runInternotes m mevent = runEventListenT m mevent
+-- sleep :: MonadInternotes m => NominalDiffTime -> Internotes m ()
+-- sleep dt = do
+--   ct <- getCurrentTime
+--   EventListen.cmd $ const (CurrentTime $ ct + dt) <$> MI.sleep dt
+--   listen $ ll ct
+--     where
+--       ll ct (CurrentTime t)
+--         | t >= ct + dt = Just ()
+--         | otherwise = Nothing
+--       ll _ _ = Nothing
 
+-- noop :: Functor f => f a -> f InternotesEvent
+-- noop = fmap (const Noop)
 
-runProgram :: (MonadIO m) => TQueue InternotesEvent -> Internotes m a -> m a
-runProgram q m = innerloop Nothing m where
-  innerloop mevent m' = do
-    (_, er) <- runInternotes m' mevent
-    case er of
-      Right a -> return a
-      Left cont -> do
-        event <- liftIO . atomically . readTQueue $ q
-        innerloop (Just event) cont
+-- playNote :: MonadInternotes m => Note -> Velocity -> Internotes m ()
+-- playNote n = EventListen.cmd . noop . MI.playNote n
 
-sleep :: MonadInternotes m => NominalDiffTime -> Internotes m ()
-sleep t = do
-  lift $ MI.sleep t
-  ct <- lift MI.getCurrentTime
-  listen (pastTime $ ct + t)
-  where
-    pastTime targetTime (CurrentTime time)
-      | time >= targetTime = return ()
-      | otherwise = Nothing
-    pastTime _ _ = Nothing
+-- getCurrentTime :: MonadInternotes m => Internotes m NominalDiffTime
+-- getCurrentTime = do
+--   EventListen.cmd $ CurrentTime <$> MI.getCurrentTime
+--   listen ct
+--     where
+--       ct (CurrentTime t) = Just t
+--       ct _ = Nothing
 
-playNote :: MonadInternotes m => Note -> Velocity -> Internotes m ()
-playNote n = lift . MI.playNote n
+-- randomInt :: MonadInternotes m => (Int, Int) -> Internotes m Int
+-- randomInt rr = do
+--   EventListen.cmd $ RandomInt <$> MI.randomInt rr
+--   listen ct
+--     where
+--       ct (RandomInt t) = Just t
+--       ct _ = Nothing
 
-getCurrentTime :: MonadInternotes m => Internotes m NominalDiffTime
-getCurrentTime = lift MI.getCurrentTime
-
-randomInt :: MonadInternotes m => (Int, Int) -> Internotes m Int
-randomInt = lift . MI.randomInt
-
-debug :: MonadInternotes m => Text -> Internotes m ()
-debug = lift . MI.debug
+-- debug :: MonadInternotes m => Text -> Internotes m ()
+-- debug = EventListen.cmd . noop . MI.debug
 
 -- instance MonadInternotes m => MonadInternotes (Internotes m) where
 --   sleep t = do
