@@ -27,6 +27,7 @@ import Internotes.Types.MonadInternotes (MonadInternotes
                                         )
 import Monad.Flume (cmd, listen, globalEvent)
 import Internotes.Types.Internotes ( Internotes
+                                   , InternotesEvent( MidiEvent )
                                          )
 -- internotes 9999 2.0 5.0
 -- internotes 4 1.0 7.0
@@ -60,46 +61,43 @@ biSimple = reallySimple_ 1.5 "Buster" <|> reallySimple_ 4.0 "Wiggy Wiggy"
 --   waitForProperNote goal
 --   sleep 0.88
 
--- simpleFollow :: MonadInternotes m => Int -> m ()
--- simpleFollow maxJump = do
---   (n, v) <- anyNote
---   playNote n v
---   sleep 0.88
---   run n where
---     run lastNote = do
---       goal <- nextRandomNote maxJump lastNote
---       debug $ show goal
---       playNote goal 120
---       waitForProperNote goal
---       sleep 0.88
---       run goal
+simpleFollow :: MonadInternotes m => Int -> Internotes m ()
+simpleFollow maxJump = do
+  (n, v) <- listen anyNote
+  cmd $ playNote n v
+  cmd $ sleep 0.88
+  run n where
+    run lastNote = do
+      goal <- nextRandomNote maxJump lastNote
+      cmd . debug $ show goal
+      cmd $ playNote goal 120
+      waitForProperNote goal
+      cmd $ sleep 0.88
+      run goal
 
--- maxNote :: Note
--- maxNote = 55
+maxNote :: Note
+maxNote = 55
 
--- minNote :: Note
--- minNote = 25
+minNote :: Note
+minNote = 25
 
--- nextRandomNote :: MonadInternotes m => Int -> Note -> m Note
--- nextRandomNote range (Note n) = do
---   r <- randomInt ((-1) * range, range)
---   let r' = if Note (n + r) > maxNote || Note (n + r) < minNote
---            then Note (n - r)
---            else Note (n + r)
---   return r'
+nextRandomNote :: MonadInternotes m => Int -> Note -> Internotes m Note
+nextRandomNote range (Note n) = do
+  r <- cmd $ randomInt ((-1) * range, range)
+  let r' = if Note (n + r) > maxNote || Note (n + r) < minNote
+           then Note (n - r)
+           else Note (n + r)
+  return r'
 
--- anyNote :: MonadInternotes m => m (Note, Velocity)
--- anyNote = pollMidiEvent >>= \case
---   (NoteOn _ n v) -> return (n, v)
---   _ -> anyNote
+anyNote :: InternotesEvent -> Maybe (Note, Velocity)
+anyNote (MidiEvent (NoteOn _ n v)) = Just (n, v)
+anyNote _ = Nothing
 
--- waitForProperNote :: MonadInternotes m => Note -> m ()
--- waitForProperNote goalNote = do
---   pollMidiEvent >>= \case
---     (NoteOn _ n v) -> do
---       debug $ "Playing: " <> show n
---       playNote n v
---       if goalNote == n
---         then return ()
---         else waitForProperNote goalNote
---     _ -> waitForProperNote goalNote
+waitForProperNote :: MonadInternotes m => Note -> Internotes m ()
+waitForProperNote goalNote = do
+  (n, v) <- listen anyNote
+  cmd . debug $ "Playing: " <> show n
+  cmd $ playNote n v
+  if goalNote == n
+    then return ()
+    else waitForProperNote goalNote

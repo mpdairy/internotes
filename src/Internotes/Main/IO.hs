@@ -26,6 +26,7 @@ import Internotes.Types.Internotes (Internotes)
 import qualified Streamly.Prelude as S
 import Streamly hiding (async)
 import qualified Internotes.Midi.Alsa as Alsa
+import Internotes.Midi.Alsa (Source(Source))
 import Control.Concurrent.STM.TQueue
 import Data.Time.Calendar ( Day(ModifiedJulianDay))
 import Internotes.Types.Internotes (InternotesEvent( MidiEvent
@@ -35,7 +36,7 @@ import Data.Time.Clock ( NominalDiffTime, UTCTime(UTCTime)
                        )
 import qualified Data.Time.Clock as Clock
 import Monad.Flume (execFlumeAsync, FlumeEvent( GlobalEvent ))
-import Internotes.Programs.Simple (reallySimple, biSimple)
+import Internotes.Programs.Simple (reallySimple, biSimple, simpleFollow)
 
 -- internotes 9999 2.0 5.0
 -- internotes 4 1.0 7.0
@@ -64,12 +65,23 @@ newtype InternotesIO a = InternotesIO
            , MonadIO
            )
 
-runProgram :: Internotes InternotesIO a -> IO a
-runProgram program = do
+runProgram_ :: Internotes InternotesIO a -> IO a
+runProgram_ program = do
   ctx <- alsaCtxNoInput
   flip runInternotesIO ctx $ execFlumeAsync (unliftIO ctx) 0 (events ctx) program
     where
       unliftIO ctx m = Just <$> runInternotesIO m ctx
+
+defaultSource :: Source
+defaultSource = Source 20 0
+
+runProgram :: Alsa.Source -> Internotes InternotesIO a -> IO a
+runProgram src program = do
+  ctx <- alsaCtx src
+  flip runInternotesIO ctx $ execFlumeAsync (unliftIO ctx) 0 (events ctx) program
+    where
+      unliftIO ctx m = Just <$> runInternotesIO m ctx
+
 
 alsaCtxNoInput :: IO InternotesCtx
 alsaCtxNoInput = do
