@@ -37,7 +37,8 @@ import Data.Time.Clock ( NominalDiffTime, UTCTime(UTCTime)
 import qualified Data.Time.Clock as Clock
 import Monad.Flume (execFlumeAsync, FlumeEvent( GlobalEvent ))
 import Internotes.Programs.Simple (reallySimple, biSimple, simpleFollow)
-
+import Internotes.Programs.Sequence ( follow )
+import qualified Internotes.Midi.Generate as Generate
 -- internotes 9999 2.0 5.0
 -- internotes 4 1.0 7.0
 
@@ -64,6 +65,13 @@ newtype InternotesIO a = InternotesIO
            , MonadReader InternotesCtx
            , MonadIO
            )
+
+runSimpleFollow :: IO ()
+runSimpleFollow = runProgram defaultSource $ simpleFollow 12
+
+runComplicatedFollow :: Int -> IO ()
+runComplicatedFollow n = Generate.simpleSequence 15 60 12 300 30
+  >>= runProgram defaultSource . follow n
 
 runProgram_ :: Internotes InternotesIO a -> IO a
 runProgram_ program = do
