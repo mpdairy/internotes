@@ -116,9 +116,12 @@ octaveSequenceTo n1 n2
 
 playSequence :: MonadInternotes m
              => [Note] -> Internotes m ()
-playSequence = traverse_ (\n -> do
-                             cmd $ playNote n 110
-                             cmd $ sleep 0.88)
+playSequence [] = return ()
+playSequence [n] = cmd $ playNote n 110
+playSequence (n:ns) = do
+  cmd $ playNote n 110
+  cmd $ sleep 0.88
+  playSequence ns
 
 follow :: forall m. MonadInternotes m 
        => Int -> [Note] -> Internotes m ()
